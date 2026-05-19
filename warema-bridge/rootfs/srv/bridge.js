@@ -124,6 +124,7 @@ const settingsPar = {
 const registeredShades = new Set();
 const registeredWeatherStations = new Set();
 const registeredBlindsInLibrary = new Set();
+const registeredWeatherStationTypes = new Map();
 const shadePosition = {};
 let mqttConnectCount = 0;
 
@@ -131,6 +132,7 @@ const resetLocalRegistrationState = () => {
   registeredShades.clear();
   registeredWeatherStations.clear();
   registeredBlindsInLibrary.clear();
+  registeredWeatherStationTypes.clear();
   Object.keys(shadePosition).forEach((serialNumber) => {
     delete shadePosition[serialNumber];
   });
@@ -266,6 +268,7 @@ function registerDevice(element) {
   }
 
   if (deviceConfig.category === DEVICE_CATEGORIES.WEATHER) {
+    registeredWeatherStationTypes.set(serialNumber, Number(element.type));
     if (!isIgnored) {
       publishWeatherDiscovery({ snr: serialNumber }, deviceConfig.model);
     }
@@ -360,9 +363,43 @@ const publishWeatherDiscovery = (weather, model = 'Weather Station') => {
   registeredWeatherStations.add(serialNumber);
 };
 
-const normalizeWeatherValue = (sensor, value) => {
+const parseNumericWeatherValue = (value) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(',', '.');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const normalizeWindValue = (serialNumber, value) => {
+  const numericValue = parseNumericWeatherValue(value);
+  if (numericValue === null) {
+    return value.toString();
+  }
+
+  const isWeatherStationPro = registeredWeatherStationTypes.get(serialNumber) === DEVICE_TYPES.WEATHER_STATION_PRO;
+  const normalizedValue = isWeatherStationPro ? numericValue / 2 : numericValue;
+
+  return normalizedValue.toString();
+};
+
+const normalizeWeatherValue = (serialNumber, sensor, value) => {
   if (sensor.component === 'binary_sensor') {
     return value ? 'ON' : 'OFF';
+  }
+
+  if (sensor.stateKey === 'wind') {
+    return normalizeWindValue(serialNumber, value);
   }
 
   return value.toString();
@@ -376,7 +413,7 @@ const publishWeatherStates = (serialNumber, weather) => {
 
     client.publish(
       buildWeatherStateTopic(serialNumber, sensor.name),
-      normalizeWeatherValue(sensor, weather[sensor.stateKey]),
+      normalizeWeatherValue(serialNumber, sensor, weather[sensor.stateKey]),
     );
   });
 };

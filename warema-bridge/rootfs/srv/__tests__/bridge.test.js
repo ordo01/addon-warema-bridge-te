@@ -245,6 +245,36 @@ describe('bridge.js', () => {
     expect(payload.device.model).toBe('Weather Station Pro');
   });
 
+
+  test('callback should publish halved wind speed for Weather Station Pro broadcasts', () => {
+    callback(null, {
+      topic: 'wms-vb-scanned-devices',
+      payload: { devices: [{ snr: 1485190, type: 63 }] }
+    });
+
+    callback(null, {
+      topic: 'wms-vb-rcv-weather-broadcast',
+      payload: { weather: { snr: 1485190, wind: 4 } }
+    });
+
+    expect(clientMock.publish).toHaveBeenCalledWith('warema/1485190/wind_speed/state', '2');
+  });
+
+
+  test('callback should normalize Weather Station Pro wind values with decimals and comma strings', () => {
+    callback(null, {
+      topic: 'wms-vb-scanned-devices',
+      payload: { devices: [{ snr: 1485190, type: 63 }] }
+    });
+
+    callback(null, {
+      topic: 'wms-vb-rcv-weather-broadcast',
+      payload: { weather: { snr: 1485190, wind: '4,5' } }
+    });
+
+    expect(clientMock.publish).toHaveBeenCalledWith('warema/1485190/wind_speed/state', '2.25');
+  });
+
   test('callback should handle wms-vb-scanned-devices', () => {
     const msg = { topic: 'wms-vb-scanned-devices', payload: { devices: [{ snr: 222, type: 25 }] } };
     callback(null, msg);
