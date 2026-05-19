@@ -2,6 +2,12 @@
 
 All notable changes to this Home Assistant add-on are documented in this file.
 
+## 3.0.3
+
+- Fix #36: Weather Station Pro wind normalization now robustly handles decimal wind values from weather broadcasts.
+- MQTT runtime: Wind values are now parsed from numbers and strings (including comma decimals like `"4,5"`) before Weather Station Pro scaling is applied.
+- Tests: Added coverage for type `63` wind normalization with integer and comma-decimal input values.
+
 ## 3.0.2
 
 - Fix #34: Added Weather Station Pro (device type `63`) support as a weather station so it is not registered as a blind.
