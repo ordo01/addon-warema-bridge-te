@@ -1,9 +1,9 @@
 ---
-name: Warema WMS Bridge
-version: "3.0.3"
+name: Warema WMS Bridge Ordo01
+version: "3.0.3a"
 slug: addon-warema-bridge
 description: "Bridge for Warema WMS devices with MQTT support"
-url: "https://github.com/chha25/addon-warema-bridge"
+url: "https://github.com/ordo01/addon-warema-bridge-te"
 arch:
   - aarch64
   - amd64

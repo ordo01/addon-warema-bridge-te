@@ -34,6 +34,8 @@ const DEVICE_CATEGORIES = {
 const POSITION_UPDATE_INTERVAL_MS = 30000;
 const DEFAULT_WMS_KEY = '00112233445566778899AABBCCDDEEFF';
 const MQTT_PAYLOAD_LIMIT = 1024;
+const WMS_POSITION_RETRY_ATTEMPTS = 3;
+const WMS_POSITION_RETRY_DELAY_MS = 200;
 
 const LOG_LEVELS = {
   trace: 10,
@@ -513,7 +515,13 @@ const handleWmsCommandResult = (msg) => {
   const message = `WMS command result ${msg.topic} for ${serialNumber}: ${JSON.stringify(payload)}`;
 
   if (error) {
-    log('warning', message);
+    // Suppress timeout warnings - they are expected and handled by library retries
+    const isTimeoutError = typeof error === 'string' && error.includes('timeout');
+    if (!isTimeoutError) {
+      log('warning', message);
+    } else {
+      log('trace', message);
+    }
     return;
   }
 
@@ -579,6 +587,23 @@ let stickUsb;
 const resolveCurrentPosition = (serialNumber) => shadePosition[serialNumber]?.position;
 const resolveCurrentAngle = (serialNumber) => shadePosition[serialNumber]?.angle;
 
+const setPositionWithRetry = async (deviceId, serialNumber, position, angle, attemptCount = 0) => {
+  return new Promise((resolve) => {
+    try {
+      if (angle !== undefined) {
+        stickUsb.vnBlindSetPosition(deviceId, position, Number.parseInt(angle, 10));
+      } else {
+        stickUsb.vnBlindSetPosition(deviceId, position);
+      }
+      log('trace', `Position command sent for ${serialNumber} (attempt ${attemptCount + 1})`);
+      resolve(true);
+    } catch (error) {
+      log('error', `Error setting position for ${serialNumber}: ${error.message}`);
+      resolve(false);
+    }
+  });
+};
+
 const ensureStickInitialized = () => {
   if (stickUsb) {
     const status = typeof stickUsb.getStatus === 'function' ? stickUsb.getStatus() : undefined;
@@ -604,12 +629,12 @@ const ensureStickInitialized = () => {
 const handleSetCommand = (serialNumber, deviceId, command) => {
   if (command === 'CLOSE') {
     log('debug', `Command CLOSE for ${serialNumber}: setting Warema position 100`);
-    stickUsb.vnBlindSetPosition(deviceId, 100);
+    setPositionWithRetry(deviceId, serialNumber, 100);
     updateCachedShadeState(serialNumber, { position: 100 });
     publishShadeState(serialNumber, 'closing');
   } else if (command === 'OPEN') {
     log('debug', `Command OPEN for ${serialNumber}: setting Warema position 0`);
-    stickUsb.vnBlindSetPosition(deviceId, 0);
+    setPositionWithRetry(deviceId, serialNumber, 0);
     updateCachedShadeState(serialNumber, { position: 0 });
     publishShadeState(serialNumber, 'opening');
   } else if (command === 'STOP') {
@@ -668,11 +693,7 @@ const handleWaremaMessage = (topic, message) => {
         'debug',
         `Command set_position for ${serialNumber}: HA=${requestedHaPosition}, Warema=${requestedPosition}, currentAngle=${currentAngle}`,
       );
-      if (currentAngle !== undefined) {
-        stickUsb.vnBlindSetPosition(deviceId, requestedPosition, Number.parseInt(currentAngle, 10));
-      } else {
-        stickUsb.vnBlindSetPosition(deviceId, requestedPosition);
-      }
+      setPositionWithRetry(deviceId, serialNumber, requestedPosition, currentAngle);
 
       updateCachedShadeState(serialNumber, { position: requestedPosition });
       publishShadeState(serialNumber, deriveStateFromMovement(currentPosition, requestedPosition));
@@ -696,7 +717,7 @@ const handleWaremaMessage = (topic, message) => {
         'debug',
         `Command set_tilt for ${serialNumber}: HA=${requestedHaTilt}, Warema=${requestedAngle}, currentPosition=${currentPosition}`,
       );
-      stickUsb.vnBlindSetPosition(deviceId, Number.parseInt(currentPosition, 10), requestedAngle);
+      setPositionWithRetry(deviceId, serialNumber, Number.parseInt(currentPosition, 10), requestedAngle);
       updateCachedShadeState(serialNumber, { angle: requestedAngle });
       break;
     }

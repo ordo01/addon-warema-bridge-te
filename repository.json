@@ -1,8 +1,8 @@
 {
-  "name": "Warema WMS Bridge Add-on",
-  "url": "https://github.com/chha25/addon-warema-bridge",
-  "maintainer": "chha25",
-  "slug": "addon-warema-bridge",
+  "name": "Warema WMS Bridge Add-on Ordo01",
+  "url": "https://github.com/ordo01/addon-warema-bridge-te",
+  "maintainer": "ordo01",
+  "slug": "addon-warema-bridge-te",
   "type": "addon",
-  "version": "3.0.3"
+  "version": "3.0.3a"
 }
